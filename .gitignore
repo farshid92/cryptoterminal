@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.so
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Project / data
+.env
+.env.*
+*.sqlite3
+*.db
+*.parquet
+*.csv
+*.log
+mlruns/
+mlartifacts/
+checkpoints/
+artifacts/
+models/
+
+# Node / frontend
+node_modules/
+.next/
+out/
+.npm/
+.yarn/
+.pnpm-store/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker / infra
+*.pid
+*.sock
+
+# Temporary / local
+tmp/
+temp/
+*.tmp
