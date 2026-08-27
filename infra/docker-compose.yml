@@ -1,0 +1,48 @@
+version: '3.9'
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: ct-timescaledb
+    environment:
+      POSTGRES_DB: ct
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+
+  valkey:
+    image: valkey/valkey:7-alpine
+    container_name: ct-valkey
+    ports:
+      - '6379:6379'
+
+  minio:
+    image: minio/minio:latest
+    container_name: ct-minio
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: ct
+      MINIO_ROOT_PASSWORD: changeme
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: ct-mlflow
+    ports:
+      - '5000:5000'
+
+  api:
+    build: .
+    container_name: ct-api
+    command: python -m uvicorn serving.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - '8000:8000'
+
+  web:
+    build: ./web
+    container_name: ct-web
+    ports:
+      - '3000:3000'
