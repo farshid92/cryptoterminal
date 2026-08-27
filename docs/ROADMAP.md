@@ -2,7 +2,7 @@
 
 | Phase | Goal | Gate status |
 | --- | --- | --- |
-| P0 | Foundation, Docker stack, backfill, and live soak | Not started |
+| P0 | Foundation, Docker stack, backfill, and live soak | **Passed** |
 | P1 | Features and lifetime point-in-time validation | Not started |
 | P2 | Labels, sample weights, and purge-safe splits | Not started |
 | P3 | XGBoost baseline validation | Not started |
@@ -11,3 +11,12 @@
 | P6 | Drift monitoring and MLOps | Not started |
 
 The project follows the exact gates in PROJECT_SPEC.md.
+
+## P0 Gate Evidence
+
+- Docker Compose stack: API, TimescaleDB, Valkey, MinIO, MLflow, and web services running; API/web/MLflow endpoints returned HTTP 200.
+- Historical backfill: `files/btc_history_1m.parquet` contains 4,139,000 BTCUSDT 1m candles from `1502942400000` through `1751800260000`.
+- Dataset integrity: 0 duplicates, 0 nulls in required OHLCV fields, and 0 OHLCV violations.
+- Aggregate verification: 10/10 representative 1m-to-5m checks matched Binance 5m candles.
+- Websocket soak: 300 messages, 10 closed candles, and 0 errors over 10 minutes.
+- Gap scan: 35 non-contiguous intervals were reported for investigation; no values were filled and this does not affect the OHLCV violation gate.
