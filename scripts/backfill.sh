@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Backfill placeholder for BTCUSDT data ingestion."
+python -m ingestion.backfill "$@"
