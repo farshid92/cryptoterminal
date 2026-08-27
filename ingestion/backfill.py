@@ -22,7 +22,7 @@ def _interval_to_ms(interval: str) -> int:
         '15m': 15 * 60_000,
         '1h': 60 * 60_000,
         '4h': 4 * 60 * 60_000,
-        '1d': 24 * 60 * 60 * 60_000,
+        '1d': 24 * 60 * 60 * 1000,
     }
     if value not in units:
         raise ValueError(f'unsupported interval: {interval}')
