@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from features.derived import compute_derived
+from features.registry import FEATURE_LIST
 from features.technical import compute_all
 
 
@@ -14,14 +16,16 @@ def build_feature_frame(df: pd.DataFrame) -> pd.DataFrame:
     if df is None:
         raise TypeError("df must be a pandas DataFrame")
     features = compute_all(df)
+    derived = compute_derived(df)
     identifiers = [column for column in ("symbol", "time") if column in df.columns]
     if "time" not in identifiers:
         raise KeyError("df must include time")
     result = features
     if "symbol" in identifiers:
         result = df[["symbol", "time"]].sort_values("time").reset_index(drop=True).copy()
-        result = result.join(features.drop(columns="time"))
-    return result
+    result = result.join(features.drop(columns="time"))
+    result = result.join(derived.drop(columns="time"))
+    return result[identifiers + FEATURE_LIST]
 
 
 def save_feature_frame(df: pd.DataFrame, output_path: str | Path) -> Path:

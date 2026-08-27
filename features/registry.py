@@ -44,7 +44,25 @@ FEATURE_LIST = [
     "close_zscore_20",
     "volatility_20",
     "trend_slope_20",
+    "sma_10_20_cross",
+    "ema_12_26_cross",
+    "rsi_slope_5",
+    "close_slope_20",
+    "trend_regime",
+    "volatility_regime",
+    "volume_regime",
 ]
+
+DERIVED_FEATURES = [
+    "sma_10_20_cross",
+    "ema_12_26_cross",
+    "rsi_slope_5",
+    "close_slope_20",
+    "trend_regime",
+    "volatility_regime",
+    "volume_regime",
+]
+TECHNICAL_FEATURES = [name for name in FEATURE_LIST if name not in DERIVED_FEATURES]
 
 
 def register_feature(name: str) -> str:

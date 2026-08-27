@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from features.registry import FEATURE_LIST
+from features.registry import TECHNICAL_FEATURES
 
 
 def _require_columns(frame: pd.DataFrame) -> None:
@@ -32,7 +32,7 @@ def compute_all(df_ohlcv: pd.DataFrame) -> pd.DataFrame:
         raise TypeError("df_ohlcv must be a pandas DataFrame")
     _require_columns(df_ohlcv)
     if df_ohlcv.empty:
-        return pd.DataFrame(columns=["time", *FEATURE_LIST], index=df_ohlcv.index)
+        return pd.DataFrame(columns=["time", *TECHNICAL_FEATURES], index=df_ohlcv.index)
 
     frame = df_ohlcv.sort_values("time").reset_index(drop=True).copy()
     close = frame["close"].astype(float)
@@ -116,4 +116,4 @@ def compute_all(df_ohlcv: pd.DataFrame) -> pd.DataFrame:
     result["macd_signal"] = result["macd"].ewm(span=9, adjust=False, min_periods=9).mean()
     result["macd_hist"] = result["macd"] - result["macd_signal"]
     result["stoch_d"] = result["stoch_k"].rolling(3, min_periods=3).mean()
-    return result[["time", *FEATURE_LIST]]
+    return result[["time", *TECHNICAL_FEATURES]]
