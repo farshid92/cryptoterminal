@@ -47,6 +47,20 @@ def test_backfill_ohlcv_iterates_and_normalizes_multiple_pages():
     assert frame.iloc[-1]['close'] == 101.0
 
 
+def test_backfill_ohlcv_can_limit_batches_for_smoke_runs():
+    calls = []
+
+    def side_effect(symbol, interval, start, end):
+        calls.append((symbol, interval, start, end))
+        return _batch(0)
+
+    with patch('ingestion.backfill.fetch_klines', side_effect=side_effect):
+        frame = backfill_ohlcv('BTCUSDT', '1m', start_ms=0, end_ms=300_000, max_batches=1)
+
+    assert len(calls) == 1
+    assert list(frame['time']) == [0, 60_000]
+
+
 def test_save_parquet_writes_output(tmp_path, monkeypatch):
     frame = pd.DataFrame({'symbol': ['BTCUSDT'], 'time': [0], 'open': [1.0], 'high': [1.1], 'low': [0.9], 'close': [1.0], 'volume': [10.0]})
     output = tmp_path / 'backfill.parquet'

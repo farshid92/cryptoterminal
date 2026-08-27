@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 
 
@@ -58,7 +60,15 @@ def verify_aggregates(source_1m: pd.DataFrame, aggregate: pd.DataFrame, interval
     rows = []
     columns = ['open', 'high', 'low', 'close', 'volume']
     for _, row in merged.head(sample_size).iterrows():
-        mismatches = sum(float(row[f'{column}_expected']) != float(row[f'{column}_actual']) for column in columns)
+        mismatches = sum(
+            not math.isclose(
+                float(row[f'{column}_expected']),
+                float(row[f'{column}_actual']),
+                rel_tol=1e-9,
+                abs_tol=1e-9,
+            )
+            for column in columns
+        )
         rows.append(
             {
                 'time': int(row['time']),

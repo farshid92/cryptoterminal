@@ -22,7 +22,7 @@ def _request_json(url: str, retries: int = 3, backoff: float = 0.5) -> Any:
     raise RuntimeError('request failed unexpectedly')
 
 
-def fetch_klines(sym, interval, start, end):
+def fetch_klines(sym, interval, start, end, max_pages: int | None = None):
     """Fetch OHLCV klines from Binance for the requested time window.
 
     Args:
@@ -40,6 +40,7 @@ def fetch_klines(sym, interval, start, end):
     limit = 1000
     start_ms = int(start)
     end_ms = int(end)
+    pages = 0
 
     while start_ms < end_ms:
         url = (
@@ -71,6 +72,9 @@ def fetch_klines(sym, interval, start, end):
         if last_time <= start_ms:
             break
         start_ms = last_time + 1
+        pages += 1
+        if max_pages is not None and pages >= max_pages:
+            break
 
     deduped: dict[int, dict[str, Any]] = {}
     for row in rows:

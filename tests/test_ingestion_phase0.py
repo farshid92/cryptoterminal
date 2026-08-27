@@ -34,6 +34,21 @@ def test_fetch_klines_parses_binance_payload():
     assert rows[1]['volume'] == 150.0
 
 
+def test_fetch_klines_can_limit_pages_for_smoke_runs():
+    calls = []
+
+    class FirstPageResponse(DummyResponse):
+        def read(self):
+            calls.append(1)
+            return super().read()
+
+    with patch('ingestion.binance_rest.request.urlopen', return_value=FirstPageResponse()):
+        rows = fetch_klines('BTCUSDT', '1m', 1700000000000, 1700000300000, max_pages=1)
+
+    assert len(calls) == 1
+    assert len(rows) == 2
+
+
 def test_gap_detector_flags_missing_intervals_without_filling():
     candles = pd.DataFrame(
         {

@@ -29,13 +29,20 @@ def _interval_to_ms(interval: str) -> int:
     return units[value]
 
 
-def backfill_ohlcv(symbol: str, interval: str, start_ms: int = 0, end_ms: int | None = None) -> pd.DataFrame:
+def backfill_ohlcv(
+    symbol: str,
+    interval: str,
+    start_ms: int = 0,
+    end_ms: int | None = None,
+    max_batches: int | None = None,
+) -> pd.DataFrame:
     """Fetch a full OHLCV history window and return a normalized dataframe."""
     symbol_name = str(symbol).upper()
     interval_ms = _interval_to_ms(interval)
     stop_ms = int(end_ms) if end_ms is not None else int(datetime.now(tz=timezone.utc).timestamp() * 1000)
     cursor_ms = int(start_ms)
     rows: list[dict[str, Any]] = []
+    batches = 0
 
     while cursor_ms < stop_ms:
         batch = fetch_klines(symbol_name, interval, cursor_ms, stop_ms)
@@ -48,6 +55,9 @@ def backfill_ohlcv(symbol: str, interval: str, start_ms: int = 0, end_ms: int | 
         if next_cursor <= cursor_ms:
             break
         cursor_ms = next_cursor
+        batches += 1
+        if max_batches is not None and batches >= max_batches:
+            break
 
     normalized = pd.DataFrame(upsert_candles(pd.DataFrame(rows)))
     if normalized.empty:
@@ -71,6 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--interval', default='1m')
     parser.add_argument('--start-ms', type=int, default=0)
     parser.add_argument('--end-ms', type=int)
+    parser.add_argument('--max-batches', type=int)
     parser.add_argument('--output', help='Optional parquet output path')
     return parser
 
@@ -78,7 +89,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    frame = backfill_ohlcv(args.symbol, args.interval, start_ms=args.start_ms, end_ms=args.end_ms)
+    frame = backfill_ohlcv(
+        args.symbol,
+        args.interval,
+        start_ms=args.start_ms,
+        end_ms=args.end_ms,
+        max_batches=args.max_batches,
+    )
     if args.output:
         save_parquet(frame, args.output)
     print(f'rows={len(frame)} symbol={args.symbol} interval={args.interval}')
