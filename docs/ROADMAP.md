@@ -3,7 +3,7 @@
 | Phase | Goal | Gate status |
 | --- | --- | --- |
 | P0 | Foundation, Docker stack, backfill, and live soak | **Passed** |
-| P1 | Features and lifetime point-in-time validation | Not started |
+| P1 | Features and lifetime point-in-time validation | **In progress** |
 | P2 | Labels, sample weights, and purge-safe splits | Not started |
 | P3 | XGBoost baseline validation | Not started |
 | P4 | Ensemble modeling | Not started |
@@ -20,3 +20,9 @@ The project follows the exact gates in PROJECT_SPEC.md.
 - Aggregate verification: 10/10 representative 1m-to-5m checks matched Binance 5m candles.
 - Websocket soak: 300 messages, 10 closed candles, and 0 errors over 10 minutes.
 - Gap scan: 35 non-contiguous intervals were reported for investigation; no values were filled and this does not affect the OHLCV violation gate.
+
+## P1 Progress
+
+- Explicit registry and 43 causal technical features implemented.
+- Pure feature computation and parquet materialization are covered by 3 focused tests.
+- Remaining P1 gate work: price-action/derived features, full builder integration, null-rate measurement after warmup, Feast latency, and 100-point point-in-time audit.
