@@ -47,22 +47,18 @@ def test_backfill_ohlcv_iterates_and_normalizes_multiple_pages():
     assert frame.iloc[-1]['close'] == 101.0
 
 
-def test_save_parquet_writes_output(tmp_path):
+def test_save_parquet_writes_output(tmp_path, monkeypatch):
     frame = pd.DataFrame({'symbol': ['BTCUSDT'], 'time': [0], 'open': [1.0], 'high': [1.1], 'low': [0.9], 'close': [1.0], 'volume': [10.0]})
     output = tmp_path / 'backfill.parquet'
 
     called = {}
 
-    def fake_to_parquet(self, path, index=False):
+    def fake_to_parquet(self, path, **kwargs):
         called['path'] = path
-        called['index'] = index
+        called['index'] = kwargs.get('index')
 
-    original = pd.DataFrame.to_parquet
-    pd.DataFrame.to_parquet = fake_to_parquet
-    try:
-        path = save_parquet(frame, output)
-    finally:
-        pd.DataFrame.to_parquet = original
+    monkeypatch.setattr(pd.DataFrame, 'to_parquet', fake_to_parquet)
+    path = save_parquet(frame, output)
 
     assert path == output
     assert called['path'] == output

@@ -19,6 +19,7 @@ htmlcov/
 # Project / data
 .env
 .env.*
+!config/.env.example
 *.sqlite3
 *.db
 *.parquet
