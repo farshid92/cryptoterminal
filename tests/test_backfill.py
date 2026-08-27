@@ -2,7 +2,8 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from ingestion.backfill import backfill_ohlcv, save_parquet
+from ingestion import backfill as backfill_module
+from ingestion.backfill import backfill_ohlcv, save_parquet, stream_backfill_to_parquet
 
 
 def _batch(start_time: int):
@@ -77,3 +78,45 @@ def test_save_parquet_writes_output(tmp_path, monkeypatch):
     assert path == output
     assert called['path'] == output
     assert called['index'] is False
+
+
+def test_stream_backfill_to_parquet_writes_multiple_pages(tmp_path, monkeypatch):
+    pages = [
+        _batch(0),
+        _batch(120_000),
+    ]
+    calls = []
+
+    def side_effect(symbol, interval, start, end, max_pages=None):
+        calls.append((symbol, interval, start, end, max_pages))
+        if pages:
+            return pages.pop(0)
+        return []
+
+    written = []
+
+    class FakeWriter:
+        def __init__(self, path, schema):
+            self.path = path
+            self.schema = schema
+
+        def write_table(self, table):
+            written.append(table.num_rows)
+
+        def close(self):
+            written.append('closed')
+
+    monkeypatch.setattr(backfill_module, 'fetch_klines', side_effect)
+    monkeypatch.setattr(backfill_module.pq, 'ParquetWriter', FakeWriter)
+    monkeypatch.setattr(
+        backfill_module,
+        '_table_from_frame',
+        lambda frame: type('T', (), {'num_rows': len(frame), 'schema': None})(),
+    )
+
+    output = tmp_path / 'stream.parquet'
+    total_rows = stream_backfill_to_parquet('BTCUSDT', '1m', output, start_ms=0, end_ms=300_000)
+
+    assert total_rows == 4
+    assert len(calls) == 3
+    assert written == [2, 2, 'closed']
