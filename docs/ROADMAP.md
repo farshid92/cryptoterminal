@@ -25,4 +25,5 @@ The project follows the exact gates in PROJECT_SPEC.md.
 
 - Explicit registry with 50 features implemented, including 43 technical and 7 derived features.
 - Pure feature computation, causal derived features, and parquet materialization are covered by 4 focused tests.
-- Remaining P1 gate work: price-action utilities, null-rate measurement after warmup, Feast latency, and 100-point point-in-time audit.
+- Price-action pattern and support/resistance utilities are implemented and covered by focused tests.
+- Remaining P1 gate work: null-rate measurement after warmup, Feast latency, and 100-point point-in-time audit.
