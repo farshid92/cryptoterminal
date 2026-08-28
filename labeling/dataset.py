@@ -11,6 +11,7 @@ from labeling.triple_barrier import triple_barrier
 from labeling.validation import (
     BALANCED_LABELING_CONFIG,
     assert_holdout_excluded,
+    balance_labeled_frame,
     split_last_months,
 )
 
@@ -21,6 +22,8 @@ def build_training_artifact(
     holdout_months: int = 6,
     atr_window: int = 14,
     config: dict[str, float | int] | None = None,
+    balance_classes: bool = True,
+    seed: int = 42,
 ) -> tuple[Path, pd.DataFrame]:
     """Build and persist labels using only rows before the untouched holdout."""
     if atr_window < 1:
@@ -39,10 +42,13 @@ def build_training_artifact(
         axis=1,
     ).max(axis=1)
     atr = true_range.rolling(atr_window, min_periods=atr_window).mean().bfill()
+    labeling_config = config or BALANCED_LABELING_CONFIG
     labels = triple_barrier(
         train[["close"]],
         atr,
-        **(config or BALANCED_LABELING_CONFIG),
+        horizon=int(labeling_config["horizon"]),
+        tp_m=float(labeling_config["tp_m"]),
+        sl_m=float(labeling_config["sl_m"]),
     )
     labels["weight"] = sample_weights(
         labels,
@@ -50,6 +56,8 @@ def build_training_artifact(
     ).to_numpy()
     artifact = train.reset_index(drop=True).copy()
     artifact[["label", "touch_i", "ret", "weight"]] = labels
+    if balance_classes and set(artifact["label"].astype(int).unique()) == {-1, 0, 1}:
+        artifact = balance_labeled_frame(artifact, seed=seed)
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     artifact.to_parquet(output, index=False)

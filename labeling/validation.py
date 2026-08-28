@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import numpy as np
 
 BALANCED_LABELING_CONFIG = {"horizon": 60, "tp_m": 6.0, "sl_m": 6.0}
 
@@ -51,3 +52,20 @@ def assert_holdout_excluded(train: pd.DataFrame, holdout: pd.DataFrame) -> None:
             raise KeyError("train and holdout must include time")
     if set(train["time"]).intersection(holdout["time"]):
         raise ValueError("holdout timestamps are present in training data")
+
+
+def balance_labeled_frame(frame: pd.DataFrame, seed: int = 42) -> pd.DataFrame:
+    """Undersample each required class to the smallest class count deterministically."""
+    if "label" not in frame.columns:
+        raise KeyError("frame must include label")
+    groups = [group for _, group in frame.groupby("label") if not group.empty]
+    required = {-1, 0, 1}
+    if {int(group["label"].iloc[0]) for group in groups} != required:
+        raise ValueError("frame must contain all labels -1, 0, and 1")
+    target = min(len(group) for group in groups)
+    rng = np.random.default_rng(seed)
+    sampled = [
+        group.iloc[np.sort(rng.choice(len(group), size=target, replace=False))]
+        for group in groups
+    ]
+    return pd.concat(sampled).sort_values("time").reset_index(drop=True)

@@ -10,6 +10,7 @@ from labeling.validation import (
     class_balance_passes,
     class_distribution,
     split_last_months,
+    balance_labeled_frame,
 )
 from labeling.dataset import build_training_artifact
 
@@ -35,10 +36,19 @@ def test_triple_barrier_expires_neutral_at_horizon():
     assert result["touch_i"].tolist() == [2, 3, 3, 3]
 
 
+def test_triple_barrier_numba_path_matches_expected_shape():
+    candles = pd.DataFrame({"close": [100.0, 102.0, 104.0]})
+
+    result = triple_barrier(candles, atr=[1.0, 1.0, 1.0], horizon=1, tp_m=2, sl_m=1)
+
+    assert result.shape == (3, 3)
+    assert result["label"].tolist() == [1, 1, 0]
+
+
 def test_sample_weights_are_positive_and_normalized():
     labels = pd.DataFrame({"label": [1, 0, -1], "ret": [0.1, 0.0, -0.2]})
 
-    weights = sample_weights(labels, touch_times=[2, 2, 2], time_decay=0.5)
+    weights = sample_weights(labels, touch_times=pd.Series([2, 2, 2]), time_decay=0.5)
 
     assert (weights > 0).all()
     assert weights.mean() == pytest.approx(1.0)
@@ -76,6 +86,14 @@ def test_last_month_holdout_is_chronologically_untouched():
 
 def test_balanced_labeling_config_is_explicit():
     assert BALANCED_LABELING_CONFIG == {"horizon": 60, "tp_m": 6.0, "sl_m": 6.0}
+
+
+def test_balance_labeled_frame_is_deterministic_and_balanced():
+    frame = pd.DataFrame({"time": range(6), "label": [-1, -1, -1, 0, 0, 1]})
+
+    balanced = balance_labeled_frame(frame, seed=42)
+
+    assert balanced["label"].value_counts().to_dict() == {-1: 1, 0: 1, 1: 1}
 
 
 def test_training_artifact_excludes_holdout(tmp_path):

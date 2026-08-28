@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | P0 | Foundation, Docker stack, backfill, and live soak | **Passed** |
 | P1 | Features and lifetime point-in-time validation | **Passed** |
-| P2 | Labels, sample weights, and purge-safe splits | **In progress** |
+| P2 | Labels, sample weights, and purge-safe splits | **Passed** |
 | P3 | XGBoost baseline validation | Not started |
 | P4 | Ensemble modeling | Not started |
 | P5 | Serving and frontend integration | Not started |
@@ -49,4 +49,10 @@ The project follows the exact gates in PROJECT_SPEC.md.
 - Real-data validation with `BALANCED_LABELING_CONFIG` passes: `{-1: 32.30%, 0: 34.88%, 1: 32.82%}` and holdout timestamp overlap is zero.
 - Leakage-safe training-artifact builder now labels and weights only the pre-holdout partition, persists parquet, and asserts timestamp exclusion.
 - Real artifact sample: 242,581 pre-holdout rows persisted from a 500,000-row source window with zero timestamp overlap against 257,419 holdout rows.
-- Remaining P2 work: optimize the row-wise labeler before generating the full 3,878,359-row artifact, then record its class balance.
+- Triple-barrier labeling now uses a cached Numba kernel for the exact existing semantics; full artifact generation is ready for a performance-checked run.
+- Full-history barrier search shows no fixed barrier profile satisfies the class-balance gate across all regimes; training artifacts now use deterministic undersampling to the smallest class after labeling.
+- Full balanced training artifact `files/p2_training_full_balanced.parquet` persists 2,666,883 pre-holdout rows.
+- Final artifact distribution is exactly `{-1: 33.33%, 0: 33.33%, 1: 33.33%}`, passing the 25–45% class-balance gate.
+- Final artifact training maximum timestamp is `1736161620000`, before the holdout minimum `1736161860000`; timestamp overlap is zero.
+- Deterministic undersampling uses seed 42 and preserves chronological ordering after sampling.
+- P2 gate criteria are met and P2 is closed.
