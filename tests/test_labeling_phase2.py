@@ -2,6 +2,8 @@ import pandas as pd
 import pytest
 
 from labeling.triple_barrier import triple_barrier
+from labeling.sample_weights import sample_weights
+from backtest.purged_cv import purged_cv
 
 
 def test_triple_barrier_assigns_first_touch_and_return():
@@ -23,3 +25,23 @@ def test_triple_barrier_expires_neutral_at_horizon():
 
     assert result["label"].tolist() == [0, 0, 0, 0]
     assert result["touch_i"].tolist() == [2, 3, 3, 3]
+
+
+def test_sample_weights_are_positive_and_normalized():
+    labels = pd.DataFrame({"label": [1, 0, -1], "ret": [0.1, 0.0, -0.2]})
+
+    weights = sample_weights(labels, touch_times=[2, 2, 2], time_decay=0.5)
+
+    assert (weights > 0).all()
+    assert weights.mean() == pytest.approx(1.0)
+
+
+def test_purged_cv_has_no_overlapping_training_events():
+    touch_times = [3, 4, 5, 6, 7, 8, 9, 9, 9, 9]
+
+    splits = purged_cv(10, touch_times, n_splits=2, embargo_bars=1)
+
+    for train, test in splits:
+        test_start, test_stop = min(test), max(test)
+        assert not set(train).intersection(test)
+        assert all(touch_times[index] < test_start or index > test_stop + 1 for index in train)

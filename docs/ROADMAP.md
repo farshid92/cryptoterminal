@@ -38,4 +38,6 @@ The project follows the exact gates in PROJECT_SPEC.md.
 ## P2 Progress
 
 - Triple-barrier labels are implemented with first-touch ordering, horizon expiry, and return outputs.
-- Remaining P2 work: sample weights, purge/embargo proof, class-balance measurement, and held-out last-6-month protection.
+- Sample weights are implemented with uniqueness, return magnitude, and optional time-decay components.
+- Purge/embargo behavior is covered by an overlap-proof test.
+- Remaining P2 work: class-balance measurement and held-out last-6-month protection.
