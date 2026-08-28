@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | P0 | Foundation, Docker stack, backfill, and live soak | **Passed** |
 | P1 | Features and lifetime point-in-time validation | **Passed** |
-| P2 | Labels, sample weights, and purge-safe splits | Not started |
+| P2 | Labels, sample weights, and purge-safe splits | **In progress** |
 | P3 | XGBoost baseline validation | Not started |
 | P4 | Ensemble modeling | Not started |
 | P5 | Serving and frontend integration | Not started |
@@ -34,3 +34,8 @@ The project follows the exact gates in PROJECT_SPEC.md.
 - Feast repository setup and benchmark tooling are implemented and covered by a repository-creation test.
 - Feast complete-frame local SQLite benchmark: 4,139,000 feature rows materialized; 1,000 online retrievals measured p50 0.655 ms and p99 1.601 ms, below the 5 ms target.
 - P1 gate criteria are now met; P1 closure is pending final documentation and commit.
+
+## P2 Progress
+
+- Triple-barrier labels are implemented with first-touch ordering, horizon expiry, and return outputs.
+- Remaining P2 work: sample weights, purge/embargo proof, class-balance measurement, and held-out last-6-month protection.
