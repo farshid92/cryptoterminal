@@ -40,4 +40,7 @@ The project follows the exact gates in PROJECT_SPEC.md.
 - Triple-barrier labels are implemented with first-touch ordering, horizon expiry, and return outputs.
 - Sample weights are implemented with uniqueness, return magnitude, and optional time-decay components.
 - Purge/embargo behavior is covered by an overlap-proof test.
-- Remaining P2 work: class-balance measurement and held-out last-6-month protection.
+- Class-distribution reporting and a chronological last-six-month holdout splitter are implemented and tested.
+- Real-data label distribution on the latest 200,000 rows is `{-1: 61.59%, 0: 0.10%, 1: 38.31%}`, so the required 25–45% balance criterion does not pass with the current barrier settings.
+- Full-dataset holdout split contains 3,878,359 training rows and 260,641 holdout rows with no timestamp overlap.
+- Remaining P2 work: choose and document approved barrier/sampling parameters to address class imbalance, then prove the held-out window is excluded from training artifacts.

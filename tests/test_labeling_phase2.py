@@ -4,6 +4,7 @@ import pytest
 from labeling.triple_barrier import triple_barrier
 from labeling.sample_weights import sample_weights
 from backtest.purged_cv import purged_cv
+from labeling.validation import class_distribution, split_last_months
 
 
 def test_triple_barrier_assigns_first_touch_and_return():
@@ -45,3 +46,20 @@ def test_purged_cv_has_no_overlapping_training_events():
         test_start, test_stop = min(test), max(test)
         assert not set(train).intersection(test)
         assert all(touch_times[index] < test_start or index > test_stop + 1 for index in train)
+
+
+def test_class_distribution_includes_all_required_classes():
+    distribution = class_distribution(pd.Series([-1, 0, 1, 1]))
+
+    assert distribution.index.tolist() == [-1, 0, 1]
+    assert distribution.sum() == pytest.approx(1.0)
+
+
+def test_last_month_holdout_is_chronologically_untouched():
+    times = pd.date_range("2024-01-01", periods=400, freq="D", tz="UTC")
+    frame = pd.DataFrame({"time": times.view("int64") // 1_000_000, "value": range(400)})
+
+    train, holdout = split_last_months(frame, months=6)
+
+    assert train["time"].max() < holdout["time"].min()
+    assert len(holdout) >= 180
