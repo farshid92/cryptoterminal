@@ -31,6 +31,8 @@ dependencies = [
   "asyncpg==0.30.0",
   "pandera==0.22.1",
   "pyarrow==17.0.0",
+  # [NEW-DEP] Required by the P1 gate for online feature retrieval and latency measurement.
+  "feast[serving]==0.66.0",
   "onnx==1.17.0",
   "onnxruntime==1.20.1",
   "prometheus-client==0.21.0",

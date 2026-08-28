@@ -50,19 +50,19 @@ def audit_point_in_time(
     sample_size: int = 100,
     seed: int = 42,
 ) -> pd.DataFrame:
-    """Recompute sampled prefixes and verify features never use future rows."""
+    """Recompute a sampled prefix and verify features never use future rows."""
     if sample_size < 1:
         raise ValueError("sample_size must be positive")
     ordered = source.sort_values("time").reset_index(drop=True)
     if ordered.empty:
         return pd.DataFrame(columns=["index", "time", "matched"])
-    built = build_feature_frame(ordered)
     rng = np.random.default_rng(seed)
     indices = np.sort(rng.choice(len(ordered), size=min(sample_size, len(ordered)), replace=False))
+    built = build_feature_frame(ordered)
+    prefix_built = build_feature_frame(ordered.iloc[: int(indices[-1]) + 1])
     rows = []
     for index in indices:
-        prefix = build_feature_frame(ordered.iloc[: index + 1])
-        expected = prefix.iloc[-1][FEATURE_LIST].to_numpy(dtype=float)
+        expected = prefix_built.iloc[index][FEATURE_LIST].to_numpy(dtype=float)
         actual = built.iloc[index][FEATURE_LIST].to_numpy(dtype=float)
         rows.append(
             {

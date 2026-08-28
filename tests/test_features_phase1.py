@@ -90,3 +90,20 @@ def test_point_in_time_audit_and_null_rates(fake_candles):
     assert rates.index.tolist() == FEATURE_LIST
     assert rates.notna().all()
     assert ((rates >= 0) & (rates <= 1)).all()
+
+
+def test_point_in_time_audit_detects_future_leakage(fake_candles, monkeypatch):
+    source = fake_candles.assign(symbol="BTCUSDT")
+    original = build_feature_frame
+
+    def leaking_builder(frame):
+        result = original(frame)
+        if len(frame) < len(source):
+            result.loc[:, "sma_10"] = 999.0
+        return result
+
+    monkeypatch.setattr("features.builder.build_feature_frame", leaking_builder)
+
+    report = audit_point_in_time(source, sample_size=20, seed=42)
+
+    assert not report["matched"].all()
