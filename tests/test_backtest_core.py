@@ -1,4 +1,4 @@
-from backtest.metrics import sharpe_ratio
+from backtest.metrics import profit_factor, sharpe_ratio, signal_coverage
 from backtest.purged_cv import purged_cv
 
 
@@ -21,3 +21,8 @@ def test_sharpe_ratio_is_positive_for_positive_mean_returns():
     value = sharpe_ratio([0.01, 0.02, 0.03, 0.01])
 
     assert value > 0
+
+
+def test_strategy_metrics_primitives_cover_p3_requirements():
+    assert profit_factor([0.1, -0.05]) == 2.0
+    assert signal_coverage([1, 0, -1]) == 2 / 3

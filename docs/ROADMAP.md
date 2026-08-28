@@ -56,3 +56,12 @@ The project follows the exact gates in PROJECT_SPEC.md.
 - Final artifact training maximum timestamp is `1736161620000`, before the holdout minimum `1736161860000`; timestamp overlap is zero.
 - Deterministic undersampling uses seed 42 and preserves chronological ordering after sampling.
 - P2 gate criteria are met and P2 is closed.
+
+## P3 Progress
+
+- Deterministic signal-only baselines are implemented: buy-and-hold, random, RSI reversal, and SMA crossover.
+- P3 strategy metrics now include Sharpe, maximum drawdown, profit factor, and non-neutral signal coverage.
+- XGBoost multiclass wrapper is implemented with stable `-1, 0, 1` label encoding and probability output.
+- Optuna tuning entry point is configured for the required 200 chronological validation trials.
+- MLflow metric logging is implemented for baseline and model runs.
+- P3 acceptance evidence is not complete yet; walk-forward tuning and gate metrics remain to be run on the full feature artifact.
