@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from features.derived import compute_derived
@@ -20,9 +21,7 @@ def build_feature_frame(df: pd.DataFrame) -> pd.DataFrame:
     identifiers = [column for column in ("symbol", "time") if column in df.columns]
     if "time" not in identifiers:
         raise KeyError("df must include time")
-    result = features
-    if "symbol" in identifiers:
-        result = df[["symbol", "time"]].sort_values("time").reset_index(drop=True).copy()
+    result = df[identifiers].sort_values("time").reset_index(drop=True).copy()
     result = result.join(features.drop(columns="time"))
     result = result.join(derived.drop(columns="time"))
     return result[identifiers + FEATURE_LIST]
@@ -34,3 +33,42 @@ def save_feature_frame(df: pd.DataFrame, output_path: str | Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path, index=False)
     return path
+
+
+def feature_null_rates(frame: pd.DataFrame, warmup: int = 200) -> pd.Series:
+    """Return per-feature null rates after the requested warmup period."""
+    if warmup < 0:
+        raise ValueError("warmup must be non-negative")
+    missing = set(FEATURE_LIST).difference(frame.columns)
+    if missing:
+        raise KeyError(f"missing feature columns: {', '.join(sorted(missing))}")
+    return frame.loc[frame.index >= warmup, FEATURE_LIST].isna().mean()
+
+
+def audit_point_in_time(
+    source: pd.DataFrame,
+    sample_size: int = 100,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """Recompute sampled prefixes and verify features never use future rows."""
+    if sample_size < 1:
+        raise ValueError("sample_size must be positive")
+    ordered = source.sort_values("time").reset_index(drop=True)
+    if ordered.empty:
+        return pd.DataFrame(columns=["index", "time", "matched"])
+    built = build_feature_frame(ordered)
+    rng = np.random.default_rng(seed)
+    indices = np.sort(rng.choice(len(ordered), size=min(sample_size, len(ordered)), replace=False))
+    rows = []
+    for index in indices:
+        prefix = build_feature_frame(ordered.iloc[: index + 1])
+        expected = prefix.iloc[-1][FEATURE_LIST].to_numpy(dtype=float)
+        actual = built.iloc[index][FEATURE_LIST].to_numpy(dtype=float)
+        rows.append(
+            {
+                "index": int(index),
+                "time": int(ordered.iloc[index]["time"]),
+                "matched": bool(np.allclose(expected, actual, equal_nan=True)),
+            }
+        )
+    return pd.DataFrame(rows)

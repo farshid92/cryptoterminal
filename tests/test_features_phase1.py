@@ -1,6 +1,6 @@
 import numpy as np
 
-from features.builder import build_feature_frame
+from features.builder import audit_point_in_time, build_feature_frame, feature_null_rates
 from features.registry import FEATURE_LIST, TECHNICAL_FEATURES
 from features.technical import compute_all
 from features.derived import compute_derived
@@ -76,3 +76,17 @@ def test_support_resistance_uses_recent_window():
         {"price": 10.0, "type": "support", "dist_pct": (10 / 13 - 1) * 100},
         {"price": 14.0, "type": "resistance", "dist_pct": (14 / 13 - 1) * 100},
     ]
+
+
+def test_point_in_time_audit_and_null_rates(fake_candles):
+    source = fake_candles.assign(symbol="BTCUSDT")
+    built = build_feature_frame(source)
+
+    audit = audit_point_in_time(source, sample_size=20, seed=42)
+    rates = feature_null_rates(built, warmup=20)
+
+    assert len(audit) == 20
+    assert audit["matched"].all()
+    assert rates.index.tolist() == FEATURE_LIST
+    assert rates.notna().all()
+    assert ((rates >= 0) & (rates <= 1)).all()
