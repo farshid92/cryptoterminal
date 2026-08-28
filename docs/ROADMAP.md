@@ -28,4 +28,7 @@ The project follows the exact gates in PROJECT_SPEC.md.
 - Price-action pattern and support/resistance utilities are implemented and covered by focused tests.
 - Real backfill null-rate measurement: maximum post-warmup null rate is 1.36%, with no feature above the 5% threshold.
 - Point-in-time audit helper is implemented and tested on 20 deterministic samples.
-- Remaining P1 gate work: Feast online p99 latency and a 100-point audit on the real dataset.
+- Real-data PIT audit: 100/100 samples matched on a 50,000-row backfill window in 41.05 seconds.
+- A full 100-point audit over all 4,139,000 rows exceeded the execution timeout because each sample recomputes its prefix; it remains unverified.
+- Feast is not installed in the selected environment, so its online p99 latency gate remains unverified.
+- Remaining P1 gate work: optimize the full-dataset PIT audit, install/configure Feast if approved, and measure online p99 latency.
