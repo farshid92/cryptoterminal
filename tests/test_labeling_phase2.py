@@ -11,6 +11,7 @@ from labeling.validation import (
     class_distribution,
     split_last_months,
 )
+from labeling.dataset import build_training_artifact
 
 
 def test_triple_barrier_assigns_first_touch_and_return():
@@ -75,3 +76,24 @@ def test_last_month_holdout_is_chronologically_untouched():
 
 def test_balanced_labeling_config_is_explicit():
     assert BALANCED_LABELING_CONFIG == {"horizon": 60, "tp_m": 6.0, "sl_m": 6.0}
+
+
+def test_training_artifact_excludes_holdout(tmp_path):
+    times = pd.date_range("2024-01-01", periods=400, freq="D", tz="UTC")
+    frame = pd.DataFrame(
+        {
+            "time": times.view("int64") // 1_000_000,
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.0,
+            "volume": 1.0,
+        }
+    )
+
+    output, artifact = build_training_artifact(frame, tmp_path / "train.parquet")
+    _, holdout = split_last_months(frame, months=6)
+
+    assert output.exists()
+    assert len(artifact) + len(holdout) == len(frame)
+    assert artifact["time"].max() < holdout["time"].min()

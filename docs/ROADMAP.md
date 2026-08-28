@@ -47,4 +47,6 @@ The project follows the exact gates in PROJECT_SPEC.md.
 - The balanced profile is now explicit as `BALANCED_LABELING_CONFIG`; contract defaults remain unchanged.
 - Holdout exclusion is enforced by a reusable timestamp-overlap assertion.
 - Real-data validation with `BALANCED_LABELING_CONFIG` passes: `{-1: 32.30%, 0: 34.88%, 1: 32.82%}` and holdout timestamp overlap is zero.
-- Remaining P2 work: generate the downstream training artifact only from the pre-holdout split and verify its timestamps exclude the holdout window.
+- Leakage-safe training-artifact builder now labels and weights only the pre-holdout partition, persists parquet, and asserts timestamp exclusion.
+- Real artifact sample: 242,581 pre-holdout rows persisted from a 500,000-row source window with zero timestamp overlap against 257,419 holdout rows.
+- Remaining P2 work: optimize the row-wise labeler before generating the full 3,878,359-row artifact, then record its class balance.
