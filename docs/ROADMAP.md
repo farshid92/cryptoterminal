@@ -3,7 +3,7 @@
 | Phase | Goal | Gate status |
 | --- | --- | --- |
 | P0 | Foundation, Docker stack, backfill, and live soak | **Passed** |
-| P1 | Features and lifetime point-in-time validation | **In progress** |
+| P1 | Features and lifetime point-in-time validation | **Passed** |
 | P2 | Labels, sample weights, and purge-safe splits | Not started |
 | P3 | XGBoost baseline validation | Not started |
 | P4 | Ensemble modeling | Not started |
@@ -29,7 +29,8 @@ The project follows the exact gates in PROJECT_SPEC.md.
 - Real backfill null-rate measurement: maximum post-warmup null rate is 1.36%, with no feature above the 5% threshold.
 - Point-in-time audit helper is implemented and tested on 20 deterministic samples.
 - Real-data PIT audit: 100/100 samples matched on a 50,000-row backfill window in 41.05 seconds.
-- A full 100-point audit over all 4,139,000 rows exceeded the execution timeout because each sample recomputes its prefix; it remains unverified.
+- Optimized full-data PIT audit: 100/100 samples matched across all 4,139,000 rows in 129.69 seconds.
 - Feast serving support is installed at version 0.66.0 and declared in the project dependencies.
-- Feast repository configuration, materialization, and online p99 latency measurement remain unverified.
-- Remaining P1 gate work: configure the Feast repository, materialize the feature frame, and measure online p99 latency.
+- Feast repository setup and benchmark tooling are implemented and covered by a repository-creation test.
+- Feast complete-frame local SQLite benchmark: 4,139,000 feature rows materialized; 1,000 online retrievals measured p50 0.655 ms and p99 1.601 ms, below the 5 ms target.
+- P1 gate criteria are now met; P1 closure is pending final documentation and commit.
