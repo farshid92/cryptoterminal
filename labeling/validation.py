@@ -14,6 +14,18 @@ def class_distribution(labels: pd.Series | pd.DataFrame) -> pd.Series:
     return counts.astype(float)
 
 
+def class_balance_passes(
+    labels: pd.Series | pd.DataFrame,
+    minimum: float = 0.25,
+    maximum: float = 0.45,
+) -> bool:
+    """Return whether every required class proportion is within the configured bounds."""
+    if not 0 <= minimum <= maximum <= 1:
+        raise ValueError("class balance bounds must satisfy 0 <= minimum <= maximum <= 1")
+    distribution = class_distribution(labels)
+    return bool(((distribution >= minimum) & (distribution <= maximum)).all())
+
+
 def split_last_months(frame: pd.DataFrame, months: int = 6) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Split chronologically, reserving the final calendar months as untouched holdout."""
     if months < 1:

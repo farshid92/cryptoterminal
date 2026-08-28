@@ -4,7 +4,7 @@ import pytest
 from labeling.triple_barrier import triple_barrier
 from labeling.sample_weights import sample_weights
 from backtest.purged_cv import purged_cv
-from labeling.validation import class_distribution, split_last_months
+from labeling.validation import class_balance_passes, class_distribution, split_last_months
 
 
 def test_triple_barrier_assigns_first_touch_and_return():
@@ -53,6 +53,7 @@ def test_class_distribution_includes_all_required_classes():
 
     assert distribution.index.tolist() == [-1, 0, 1]
     assert distribution.sum() == pytest.approx(1.0)
+    assert class_balance_passes(pd.Series([-1, 0, 1, 1])) is False
 
 
 def test_last_month_holdout_is_chronologically_untouched():

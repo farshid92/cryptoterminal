@@ -41,6 +41,7 @@ The project follows the exact gates in PROJECT_SPEC.md.
 - Sample weights are implemented with uniqueness, return magnitude, and optional time-decay components.
 - Purge/embargo behavior is covered by an overlap-proof test.
 - Class-distribution reporting and a chronological last-six-month holdout splitter are implemented and tested.
-- Real-data label distribution on the latest 200,000 rows is `{-1: 61.59%, 0: 0.10%, 1: 38.31%}`, so the required 25–45% balance criterion does not pass with the current barrier settings.
+- Real latest-200,000-row label distribution with contract defaults is `{-1: 61.59%, 0: 0.10%, 1: 38.31%}`, so the default profile fails the required 25–45% balance criterion.
+- An explicit symmetric `tp_m=6.0`, `sl_m=6.0`, `horizon=60` profile produces `{-1: 32.30%, 0: 34.88%, 1: 32.82%}` on the same window and passes the balance bounds; defaults remain unchanged.
 - Full-dataset holdout split contains 3,878,359 training rows and 260,641 holdout rows with no timestamp overlap.
-- Remaining P2 work: choose and document approved barrier/sampling parameters to address class imbalance, then prove the held-out window is excluded from training artifacts.
+- Remaining P2 work: approve the balanced barrier profile for downstream training and prove the held-out window is excluded from training artifacts.
