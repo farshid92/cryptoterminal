@@ -4,7 +4,13 @@ import pytest
 from labeling.triple_barrier import triple_barrier
 from labeling.sample_weights import sample_weights
 from backtest.purged_cv import purged_cv
-from labeling.validation import class_balance_passes, class_distribution, split_last_months
+from labeling.validation import (
+    BALANCED_LABELING_CONFIG,
+    assert_holdout_excluded,
+    class_balance_passes,
+    class_distribution,
+    split_last_months,
+)
 
 
 def test_triple_barrier_assigns_first_touch_and_return():
@@ -64,3 +70,8 @@ def test_last_month_holdout_is_chronologically_untouched():
 
     assert train["time"].max() < holdout["time"].min()
     assert len(holdout) >= 180
+    assert_holdout_excluded(train, holdout)
+
+
+def test_balanced_labeling_config_is_explicit():
+    assert BALANCED_LABELING_CONFIG == {"horizon": 60, "tp_m": 6.0, "sl_m": 6.0}

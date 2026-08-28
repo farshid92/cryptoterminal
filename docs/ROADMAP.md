@@ -44,4 +44,7 @@ The project follows the exact gates in PROJECT_SPEC.md.
 - Real latest-200,000-row label distribution with contract defaults is `{-1: 61.59%, 0: 0.10%, 1: 38.31%}`, so the default profile fails the required 25–45% balance criterion.
 - An explicit symmetric `tp_m=6.0`, `sl_m=6.0`, `horizon=60` profile produces `{-1: 32.30%, 0: 34.88%, 1: 32.82%}` on the same window and passes the balance bounds; defaults remain unchanged.
 - Full-dataset holdout split contains 3,878,359 training rows and 260,641 holdout rows with no timestamp overlap.
-- Remaining P2 work: approve the balanced barrier profile for downstream training and prove the held-out window is excluded from training artifacts.
+- The balanced profile is now explicit as `BALANCED_LABELING_CONFIG`; contract defaults remain unchanged.
+- Holdout exclusion is enforced by a reusable timestamp-overlap assertion.
+- Real-data validation with `BALANCED_LABELING_CONFIG` passes: `{-1: 32.30%, 0: 34.88%, 1: 32.82%}` and holdout timestamp overlap is zero.
+- Remaining P2 work: generate the downstream training artifact only from the pre-holdout split and verify its timestamps exclude the holdout window.
