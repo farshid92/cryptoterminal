@@ -38,6 +38,7 @@ out/
 .npm/
 .yarn/
 .pnpm-store/
+*.tsbuildinfo
 
 # IDE / OS
 .vscode/

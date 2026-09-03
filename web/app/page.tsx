@@ -145,6 +145,58 @@ function bollingerBands(values: number[], period = 20, multiplier = 2) {
   return { upper, lower, mid };
 }
 
+type SwingPoint = { index: number; price: number; time: number };
+
+// Detects local swing highs/lows using a fractal window (default 2 bars either side).
+function findSwingPoints(candles: Candle[], strength = 2) {
+  const highs: SwingPoint[] = [];
+  const lows: SwingPoint[] = [];
+
+  for (let i = strength; i < candles.length - strength; i += 1) {
+    const windowSlice = candles.slice(i - strength, i + strength + 1);
+    const centre = candles[i];
+    const isHigh = windowSlice.every((c) => centre.high >= c.high);
+    const isLow = windowSlice.every((c) => centre.low <= c.low);
+
+    if (isHigh) highs.push({ index: i, price: centre.high, time: centre.time });
+    if (isLow) lows.push({ index: i, price: centre.low, time: centre.time });
+  }
+
+  return { highs, lows };
+}
+
+// Simple linear regression (least squares) over a set of {index, price} points.
+function linearRegression(points: SwingPoint[]) {
+  if (points.length < 2) return null;
+  const n = points.length;
+  const sumX = points.reduce((s, p) => s + p.index, 0);
+  const sumY = points.reduce((s, p) => s + p.price, 0);
+  const sumXY = points.reduce((s, p) => s + p.index * p.price, 0);
+  const sumXX = points.reduce((s, p) => s + p.index * p.index, 0);
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return null;
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  return { slope, intercept, valueAt: (index: number) => slope * index + intercept };
+}
+
+type PatternType = 'Rising wedge' | 'Falling wedge' | 'Ascending triangle' | 'Descending triangle' | 'Converging triangle' | 'Channel' | 'No clear pattern';
+
+function classifyPattern(highSlope: number, lowSlope: number, avgPrice: number) {
+  // Normalize slopes relative to price scale so thresholds work across assets/timeframes.
+  const flatThreshold = avgPrice * 0.0002;
+  const highFlat = Math.abs(highSlope) < flatThreshold;
+  const lowFlat = Math.abs(lowSlope) < flatThreshold;
+
+  if (highSlope > flatThreshold && lowSlope > flatThreshold) return 'Rising wedge';
+  if (highSlope < -flatThreshold && lowSlope < -flatThreshold) return 'Falling wedge';
+  if (highFlat && lowSlope > flatThreshold) return 'Ascending triangle';
+  if (highSlope < -flatThreshold && lowFlat) return 'Descending triangle';
+  if (highSlope < -flatThreshold && lowSlope > flatThreshold) return 'Converging triangle';
+  if (highFlat && lowFlat) return 'Channel';
+  return 'No clear pattern';
+}
+
 type Signal = 'Strong Buy' | 'Buy' | 'Neutral' | 'Sell' | 'Strong Sell';
 
 function signalFromScore(score: number): Signal {
@@ -277,9 +329,57 @@ export default function Home() {
     votes.push({ label: 'Bollinger Bands', verdict: 'neutral', detail: 'Price within bands' });
   }
 
+  // Price action: swing points, trend lines, pattern classification, support/resistance, breakouts.
+  const swingStrength = 2;
+  const { highs: swingHighs, lows: swingLows } = useMemo(
+    () => findSwingPoints(chartCandles, swingStrength),
+    [chartCandles]
+  );
+
+  const recentSwingHighs = swingHighs.slice(-5);
+  const recentSwingLows = swingLows.slice(-5);
+  const highTrend = useMemo(() => linearRegression(recentSwingHighs), [recentSwingHighs]);
+  const lowTrend = useMemo(() => linearRegression(recentSwingLows), [recentSwingLows]);
+
+  const pattern: PatternType = useMemo(() => {
+    if (!highTrend || !lowTrend || recentSwingHighs.length < 2 || recentSwingLows.length < 2) {
+      return 'No clear pattern';
+    }
+    return classifyPattern(highTrend.slope, lowTrend.slope, currentPrice);
+  }, [highTrend, lowTrend, recentSwingHighs.length, recentSwingLows.length, currentPrice]);
+
+  // Support/resistance = most recently confirmed swing low/high.
+  const supportLevel = swingLows.at(-1)?.price ?? null;
+  const resistanceLevel = swingHighs.at(-1)?.price ?? null;
+
+  const lastIndex = chartCandles.length - 1;
+
+  let breakout: { direction: 'up' | 'down'; label: string } | null = null;
+  if (resistanceLevel !== null && currentPrice > resistanceLevel) {
+    breakout = { direction: 'up', label: `Breakout above resistance ${formatUsd(resistanceLevel)}` };
+  } else if (supportLevel !== null && currentPrice < supportLevel) {
+    breakout = { direction: 'down', label: `Breakdown below support ${formatUsd(supportLevel)}` };
+  }
+
+  if (pattern !== 'No clear pattern') {
+    if (pattern === 'Falling wedge' || pattern === 'Ascending triangle') {
+      score += 1;
+      votes.push({ label: 'Price action', verdict: 'bull', detail: `${pattern} forming` });
+    } else if (pattern === 'Rising wedge' || pattern === 'Descending triangle') {
+      score -= 1;
+      votes.push({ label: 'Price action', verdict: 'bear', detail: `${pattern} forming` });
+    } else {
+      votes.push({ label: 'Price action', verdict: 'neutral', detail: `${pattern} forming` });
+    }
+  }
+  if (breakout) {
+    score += breakout.direction === 'up' ? 1 : -1;
+    votes.push({ label: 'Breakout', verdict: breakout.direction === 'up' ? 'bull' : 'bear', detail: breakout.label });
+  }
+
   const overallSignal = signalFromScore(score);
-  const buyEntry = Math.min(bbLower, ema21);
-  const sellEntry = Math.max(bbUpper, ema21);
+  const buyEntry = Math.min(bbLower, ema21, supportLevel ?? bbLower);
+  const sellEntry = Math.max(bbUpper, ema21, resistanceLevel ?? bbUpper);
 
   const width = 1200;
   const height = 460;
@@ -434,6 +534,7 @@ export default function Home() {
             ['Market', 'BTC/USD'],
             ['Last price', formatUsd(currentPrice)],
             ['Signal', overallSignal],
+            ['Pattern', pattern],
             ['Buy entry (long)', formatUsd(buyEntry)],
             ['Sell entry (short)', formatUsd(sellEntry)],
             ['RSI(14)', rsiLast.toFixed(1)],
@@ -528,6 +629,84 @@ export default function Home() {
             <path d={ema21Path} fill="none" stroke="#c4b5fd" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
             <path d={sma50Path} fill="none" stroke="#f4a261" strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" />
 
+            {/* Price action: swing points */}
+            {swingHighs.map((swing) => (
+              <circle
+                key={`sh-${swing.index}`}
+                cx={xForIndex(swing.index)}
+                cy={yForPrice(swing.price)}
+                r={3}
+                fill="none"
+                stroke="#ff8fa3"
+                strokeWidth={1.4}
+              />
+            ))}
+            {swingLows.map((swing) => (
+              <circle
+                key={`sl-${swing.index}`}
+                cx={xForIndex(swing.index)}
+                cy={yForPrice(swing.price)}
+                r={3}
+                fill="none"
+                stroke="#5eead4"
+                strokeWidth={1.4}
+              />
+            ))}
+
+            {/* Price action: trend lines through recent swing highs/lows */}
+            {highTrend && recentSwingHighs.length >= 2 ? (
+              <line
+                x1={xForIndex(recentSwingHighs[0].index)}
+                y1={yForPrice(highTrend.valueAt(recentSwingHighs[0].index))}
+                x2={xForIndex(lastIndex)}
+                y2={yForPrice(highTrend.valueAt(lastIndex))}
+                stroke="#ff8fa3"
+                strokeWidth={1.4}
+                strokeDasharray="2 3"
+              />
+            ) : null}
+            {lowTrend && recentSwingLows.length >= 2 ? (
+              <line
+                x1={xForIndex(recentSwingLows[0].index)}
+                y1={yForPrice(lowTrend.valueAt(recentSwingLows[0].index))}
+                x2={xForIndex(lastIndex)}
+                y2={yForPrice(lowTrend.valueAt(lastIndex))}
+                stroke="#5eead4"
+                strokeWidth={1.4}
+                strokeDasharray="2 3"
+              />
+            ) : null}
+
+            {/* Price action: support & resistance levels */}
+            {supportLevel !== null ? (
+              <g>
+                <line x1={pad.left} x2={width - pad.right} y1={yForPrice(supportLevel)} y2={yForPrice(supportLevel)} stroke="rgba(94,234,212,0.55)" strokeWidth={1} strokeDasharray="1 4" />
+                <text x={pad.left + 6} y={yForPrice(supportLevel) - 4} fill="#5eead4" fontSize="10">Support {formatPriceAxis(supportLevel)}</text>
+              </g>
+            ) : null}
+            {resistanceLevel !== null ? (
+              <g>
+                <line x1={pad.left} x2={width - pad.right} y1={yForPrice(resistanceLevel)} y2={yForPrice(resistanceLevel)} stroke="rgba(255,143,163,0.55)" strokeWidth={1} strokeDasharray="1 4" />
+                <text x={pad.left + 6} y={yForPrice(resistanceLevel) - 4} fill="#ff8fa3" fontSize="10">Resistance {formatPriceAxis(resistanceLevel)}</text>
+              </g>
+            ) : null}
+
+            {/* Price action: breakout marker */}
+            {breakout ? (
+              <g>
+                <circle cx={xForIndex(lastIndex)} cy={yForPrice(currentPrice)} r={5} fill="none" stroke={breakout.direction === 'up' ? '#2bd784' : '#ff6584'} strokeWidth={2} />
+                <text
+                  x={xForIndex(lastIndex) + 10}
+                  y={yForPrice(currentPrice) + (breakout.direction === 'up' ? -10 : 16)}
+                  fill={breakout.direction === 'up' ? '#2bd784' : '#ff6584'}
+                  fontSize="11"
+                  fontWeight="700"
+                >
+                  {breakout.direction === 'up' ? '▲ Breakout' : '▼ Breakdown'}
+                </text>
+              </g>
+            ) : null}
+
             {/* Buy / sell zone lines */}
             <line x1={pad.left} x2={width - pad.right} y1={yForPrice(buyEntry)} y2={yForPrice(buyEntry)} stroke="rgba(70,220,155,0.85)" strokeDasharray="6 6" strokeWidth={1.2} />
             <line x1={pad.left} x2={width - pad.right} y1={yForPrice(sellEntry)} y2={yForPrice(sellEntry)} stroke="rgba(255,110,110,0.85)" strokeDasharray="6 6" strokeWidth={1.2} />
@@ -565,11 +744,13 @@ export default function Home() {
 
             {/* Legend */}
             <g>
-              <rect x={pad.left + 10} y={pad.top} width={330} height={22} rx={6} fill="rgba(15, 26, 38, 0.6)" />
+              <rect x={pad.left + 10} y={pad.top} width={470} height={22} rx={6} fill="rgba(15, 26, 38, 0.6)" />
               <text x={pad.left + 18} y={pad.top + 15} fill="#7dd3fc" fontSize="11">— EMA9</text>
               <text x={pad.left + 90} y={pad.top + 15} fill="#c4b5fd" fontSize="11">— EMA21</text>
               <text x={pad.left + 165} y={pad.top + 15} fill="#f4a261" fontSize="11">— SMA50</text>
               <text x={pad.left + 240} y={pad.top + 15} fill="#7dd3fc" fontSize="11" opacity={0.6}>┄ Bollinger</text>
+              <text x={pad.left + 335} y={pad.top + 15} fill="#ff8fa3" fontSize="11">┄ Resistance line</text>
+              <text x={pad.left + 435} y={pad.top + 15} fill="#5eead4" fontSize="11">┄ Support</text>
             </g>
 
             {/* RSI panel */}
