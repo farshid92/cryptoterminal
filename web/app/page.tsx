@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 type Candle = {
   time: number;
@@ -13,16 +13,49 @@ type Candle = {
 type Timeframe = '5m' | '15m' | '1h' | '4h';
 
 const TIMEFRAMES: { id: Timeframe; label: string; interval: string; limit: number }[] = [
-  { id: '5m', label: '5m', interval: '5m', limit: 220 },
-  { id: '15m', label: '15m', interval: '15m', limit: 220 },
-  { id: '1h', label: '1H', interval: '1h', limit: 220 },
-  { id: '4h', label: '4H', interval: '4h', limit: 220 },
+  { id: '5m', label: '5m', interval: '5m', limit: 1000 },
+  { id: '15m', label: '15m', interval: '15m', limit: 1000 },
+  { id: '1h', label: '1H', interval: '1h', limit: 1000 },
+  { id: '4h', label: '4H', interval: '4h', limit: 1000 },
 ];
+
+// How many extra pages of history (1000 candles each) to fetch beyond the latest page,
+// so users can scroll/zoom back through previous weeks and months.
+const HISTORY_PAGES = 4;
 
 const BTCUSDT_PRICE = 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT';
 
-function klinesUrl(interval: string, limit: number) {
-  return `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`;
+function klinesUrl(interval: string, limit: number, endTime?: number) {
+  const endParam = endTime ? `&endTime=${endTime}` : '';
+  return `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}${endParam}`;
+}
+
+// Fetches the latest page of candles, then walks backwards in time for extra pages
+// so the chart has enough history to scroll/zoom into previous weeks and months.
+async function fetchCandleHistory(interval: string, pageSize: number, pages: number): Promise<Candle[]> {
+  const latestJson = await fetch(klinesUrl(interval, pageSize)).then((res) => {
+    if (!res.ok) throw new Error('Market data is unavailable right now.');
+    return res.json();
+  });
+  let all = toCandles(latestJson as unknown[]);
+
+  let cursor = all[0]?.time;
+  for (let page = 1; page < pages && cursor; page += 1) {
+    try {
+      const olderJson = await fetch(klinesUrl(interval, pageSize, cursor - 1)).then((res) => {
+        if (!res.ok) throw new Error('older page failed');
+        return res.json();
+      });
+      const older = toCandles(olderJson as unknown[]);
+      if (!older.length) break;
+      all = [...older, ...all];
+      cursor = older[0]?.time;
+    } catch {
+      break;
+    }
+  }
+
+  return all;
 }
 
 function formatUsd(value: number) {
@@ -213,12 +246,41 @@ function signalColor(signal: Signal) {
   return '#e8c15a';
 }
 
+const chartControlButtonStyle: CSSProperties = {
+  border: '1px solid rgba(120, 208, 255, 0.3)',
+  background: 'rgba(18, 47, 67, 0.7)',
+  color: '#bfe8ff',
+  borderRadius: 6,
+  padding: '4px 10px',
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: 'pointer',
+};
+
+// Merges freshly fetched candles into existing history: replaces any overlapping
+// tail candles (by time) and appends new ones, keeping earlier history intact.
+function mergeCandles(existing: Candle[], incoming: Candle[]): Candle[] {
+  if (!existing.length) return incoming;
+  if (!incoming.length) return existing;
+  const firstIncomingTime = incoming[0].time;
+  const kept = existing.filter((candle) => candle.time < firstIncomingTime);
+  return [...kept, ...incoming];
+}
+
+const MIN_VISIBLE_BARS = 30;
+const MAX_VISIBLE_BARS = 500;
+const DEFAULT_VISIBLE_BARS = 90;
+
 export default function Home() {
   const [timeframe, setTimeframe] = useState<Timeframe>('15m');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [price, setPrice] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Zoom: how many candles are visible at once. Pan: index (from the end) the view is
+  // scrolled back to. viewEnd === null means "following live data" (always shows the latest bar).
+  const [visibleBars, setVisibleBars] = useState(DEFAULT_VISIBLE_BARS);
+  const [viewEnd, setViewEnd] = useState<number | null>(null);
   const [layers, setLayers] = useState({
     ema9: true,
     ema21: true,
@@ -236,27 +298,34 @@ export default function Home() {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const zoomIn = () => setVisibleBars((prev) => Math.max(MIN_VISIBLE_BARS, Math.round(prev * 0.7)));
+  const zoomOut = () => setVisibleBars((prev) => Math.min(MAX_VISIBLE_BARS, Math.round(prev * 1.4)));
+  const resetZoom = () => {
+    setVisibleBars(DEFAULT_VISIBLE_BARS);
+    setViewEnd(null);
+  };
+  const panBy = (bars: number) => {
+    setViewEnd((prev) => {
+      const currentEnd = prev ?? candles.length;
+      const next = Math.min(candles.length, Math.max(visibleBars, currentEnd + bars));
+      return next >= candles.length ? null : next;
+    });
+  };
+  const goLive = () => setViewEnd(null);
+  const dragState = useRef<{ startX: number; startEnd: number } | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     const config = TIMEFRAMES.find((tf) => tf.id === timeframe) ?? TIMEFRAMES[1];
 
-    const load = async () => {
+    const loadHistory = async () => {
       try {
-        const [klineResponse, priceResponse] = await Promise.all([
-          fetch(klinesUrl(config.interval, config.limit)),
-          fetch(BTCUSDT_PRICE),
-        ]);
-
-        if (!klineResponse.ok || !priceResponse.ok) {
-          throw new Error('Market data is unavailable right now.');
-        }
-
-        const klineJson = await klineResponse.json();
+        const nextCandles = await fetchCandleHistory(config.interval, config.limit, HISTORY_PAGES);
+        const priceResponse = await fetch(BTCUSDT_PRICE);
+        if (!priceResponse.ok) throw new Error('Market data is unavailable right now.');
         const priceJson = await priceResponse.json();
 
         if (cancelled) return;
-
-        const nextCandles = toCandles(klineJson as unknown[]);
         setCandles(nextCandles);
         setPrice(Number(priceJson?.price ?? nextCandles.at(-1)?.close ?? 0));
         setError(null);
@@ -271,9 +340,33 @@ export default function Home() {
       }
     };
 
+    const refreshLatest = async () => {
+      try {
+        const [klineResponse, priceResponse] = await Promise.all([
+          fetch(klinesUrl(config.interval, 3)),
+          fetch(BTCUSDT_PRICE),
+        ]);
+        if (!klineResponse.ok || !priceResponse.ok) throw new Error('Market data is unavailable right now.');
+
+        const klineJson = await klineResponse.json();
+        const priceJson = await priceResponse.json();
+        if (cancelled) return;
+
+        const latest = toCandles(klineJson as unknown[]);
+        setCandles((prev) => mergeCandles(prev, latest));
+        setPrice(Number(priceJson?.price ?? latest.at(-1)?.close ?? 0));
+        setError(null);
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : 'Unable to load market data.');
+        }
+      }
+    };
+
     setIsLoading(true);
-    load();
-    const timer = setInterval(load, 15000);
+    setViewEnd(null);
+    loadHistory();
+    const timer = setInterval(refreshLatest, 15000);
 
     return () => {
       cancelled = true;
@@ -281,8 +374,15 @@ export default function Home() {
     };
   }, [timeframe]);
 
-  const chartCandles = useMemo(() => candles.slice(-90), [candles]);
-  const currentPrice = price ?? chartCandles.at(-1)?.close ?? 0;
+  const effectiveEnd = viewEnd ?? candles.length;
+  const chartCandles = useMemo(
+    () => candles.slice(Math.max(0, effectiveEnd - visibleBars), effectiveEnd),
+    [candles, effectiveEnd, visibleBars]
+  );
+  const isLiveView = viewEnd === null;
+  // currentPrice: the live ticker price when following live data; when scrolled into history,
+  // use the last visible candle's close so the price scale and signals reflect that historical view.
+  const currentPrice = isLiveView ? price ?? chartCandles.at(-1)?.close ?? 0 : chartCandles.at(-1)?.close ?? 0;
   const closeValues = chartCandles.map((candle) => candle.close);
 
   const ema9Series = useMemo(() => emaSeries(closeValues, 9), [closeValues]);
@@ -407,7 +507,8 @@ export default function Home() {
   const priceRange = Math.max(maxPrice - minPrice, 1);
 
   // Reserve comfortable margin (12 bars worth of space) on the right for the latest candle
-  const rightMarginBars = 12;
+  // when following live data; when scrolled back into history, use a small fixed margin.
+  const rightMarginBars = isLiveView ? 12 : 2;
   const xForIndex = (index: number) => {
     const inner = width - pad.left - pad.right;
     const totalSlots = Math.max(chartCandles.length - 1 + rightMarginBars, 1);
@@ -653,11 +754,62 @@ export default function Home() {
             marginBottom: 18,
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px 2px', fontSize: 12, color: '#9bb5c8' }}>
-            <span>BTCUSDT {TIMEFRAMES.find((tf) => tf.id === timeframe)?.label}</span>
-            <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px 2px', fontSize: 12, color: '#9bb5c8', flexWrap: 'wrap', gap: 8 }}>
+            <span>
+              BTCUSDT {TIMEFRAMES.find((tf) => tf.id === timeframe)?.label} • showing {chartCandles.length} bars
+              {!isLiveView ? ' • scrolled to history' : ''}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button onClick={() => panBy(-Math.round(visibleBars * 0.5))} title="Scroll back (older)" style={chartControlButtonStyle}>
+                ◀
+              </button>
+              <button onClick={zoomOut} title="Zoom out" style={chartControlButtonStyle}>
+                −
+              </button>
+              <button onClick={zoomIn} title="Zoom in" style={chartControlButtonStyle}>
+                +
+              </button>
+              <button onClick={() => panBy(Math.round(visibleBars * 0.5))} title="Scroll forward (newer)" style={chartControlButtonStyle}>
+                ▶
+              </button>
+              <button onClick={resetZoom} title="Reset zoom & pan" style={chartControlButtonStyle}>
+                Reset
+              </button>
+              {!isLiveView ? (
+                <button onClick={goLive} title="Jump to live data" style={{ ...chartControlButtonStyle, color: '#7fe3c2', borderColor: 'rgba(70,220,155,0.5)' }}>
+                  ● Live
+                </button>
+              ) : null}
+              <span style={{ color: '#5f7c8f' }}>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+            </div>
           </div>
 
+          <div
+            onWheel={(event) => {
+              event.preventDefault();
+              if (event.deltaY < 0) zoomIn();
+              else zoomOut();
+            }}
+            onMouseDown={(event) => {
+              dragState.current = { startX: event.clientX, startEnd: effectiveEnd };
+            }}
+            onMouseMove={(event) => {
+              if (!dragState.current) return;
+              const deltaX = event.clientX - dragState.current.startX;
+              // Roughly convert pixel drag distance into bars based on chart width/visible bars.
+              const barsPerPixel = visibleBars / (width * 0.75);
+              const barDelta = Math.round(-deltaX * barsPerPixel);
+              const nextEnd = Math.min(candles.length, Math.max(visibleBars, dragState.current.startEnd + barDelta));
+              setViewEnd(nextEnd >= candles.length ? null : nextEnd);
+            }}
+            onMouseUp={() => {
+              dragState.current = null;
+            }}
+            onMouseLeave={() => {
+              dragState.current = null;
+            }}
+            style={{ cursor: 'grab' }}
+          >
           <svg viewBox={`0 0 ${width} ${totalSvgHeight}`} width="100%" height={totalSvgHeight} role="img" aria-label="Trading view style BTCUSDT live chart">
             {priceTicks.map((tick) => (
               <g key={tick.y}>
@@ -793,36 +945,40 @@ export default function Home() {
             <line x1={pad.left} x2={width - pad.right} y1={yForPrice(buyEntry)} y2={yForPrice(buyEntry)} stroke="rgba(70,220,155,0.85)" strokeDasharray="6 6" strokeWidth={1.2} />
             <line x1={pad.left} x2={width - pad.right} y1={yForPrice(sellEntry)} y2={yForPrice(sellEntry)} stroke="rgba(255,110,110,0.85)" strokeDasharray="6 6" strokeWidth={1.2} />
 
-            {/* Live price projection line & badge */}
-            <line
-              x1={xForIndex(chartCandles.length - 1)}
-              x2={width - pad.right}
-              y1={yForPrice(currentPrice)}
-              y2={yForPrice(currentPrice)}
-              stroke="#38bdf8"
-              strokeDasharray="3 3"
-              strokeWidth={1.2}
-            />
-            <g>
-              <rect
-                x={width - pad.right - 64}
-                y={yForPrice(currentPrice) - 9}
-                width={64}
-                height={18}
-                rx={4}
-                fill="#0284c7"
-              />
-              <text
-                x={width - pad.right - 32}
-                y={yForPrice(currentPrice) + 4}
-                textAnchor="middle"
-                fill="#ffffff"
-                fontSize="10"
-                fontWeight="700"
-              >
-                {formatPriceAxis(currentPrice)}
-              </text>
-            </g>
+            {/* Live price projection line & badge (only shown while following live data) */}
+            {isLiveView ? (
+              <>
+                <line
+                  x1={xForIndex(chartCandles.length - 1)}
+                  x2={width - pad.right}
+                  y1={yForPrice(currentPrice)}
+                  y2={yForPrice(currentPrice)}
+                  stroke="#38bdf8"
+                  strokeDasharray="3 3"
+                  strokeWidth={1.2}
+                />
+                <g>
+                  <rect
+                    x={width - pad.right - 64}
+                    y={yForPrice(currentPrice) - 9}
+                    width={64}
+                    height={18}
+                    rx={4}
+                    fill="#0284c7"
+                  />
+                  <text
+                    x={width - pad.right - 32}
+                    y={yForPrice(currentPrice) + 4}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="10"
+                    fontWeight="700"
+                  >
+                    {formatPriceAxis(currentPrice)}
+                  </text>
+                </g>
+              </>
+            ) : null}
 
             {/* Legend */}
             <g>
@@ -874,6 +1030,7 @@ export default function Home() {
               </>
             ) : null}
           </svg>
+          </div>
         </div>
 
         <div
