@@ -49,6 +49,21 @@ def signal_coverage(signals: Sequence[float]) -> float:
     return sum(value != 0.0 for value in values) / len(values)
 
 
+def rolling_positive_sharpe_fraction(
+    returns: Sequence[float],
+    window: int = 129_600,
+) -> float:
+    """Return the fraction of complete 90-day (1-minute) windows with positive Sharpe."""
+    if window < 1:
+        raise ValueError("window must be positive")
+    values = [float(value) for value in returns]
+    if len(values) < window:
+        return 0.0
+    windows = len(values) - window + 1
+    positive = sum(sharpe_ratio(values[index : index + window]) > 0.0 for index in range(windows))
+    return positive / windows
+
+
 def strategy_metrics(returns: Sequence[float], signals: Sequence[float]) -> dict[str, float]:
     """Return the P3 strategy gate metrics for aligned returns and signals."""
     if len(returns) != len(signals):

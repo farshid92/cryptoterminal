@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from models.baselines import baseline_metrics, buy_hold, random_strategy, rsi_reversal, sma_cross
-from models.xgb_model import XGBoostModel
+from models.xgb_model import XGBoostModel, XGBoostReturnRanker
 
 
 def test_baselines_are_deterministic_and_signal_only():
@@ -27,3 +27,14 @@ def test_xgboost_wrapper_returns_three_class_probabilities():
     assert probabilities.shape == (4, 3)
     assert list(probabilities.columns) == [-1, 0, 1]
     np.testing.assert_allclose(probabilities.sum(axis=1), 1.0)
+
+
+def test_return_ranker_emits_bounded_directional_coverage():
+    X = pd.DataFrame({"f1": np.arange(30), "f2": np.arange(30) % 3})
+    returns = pd.Series(np.linspace(-0.1, 0.1, 30))
+
+    model = XGBoostReturnRanker(n_estimators=5, max_depth=2).fit(X, returns)
+    signals = model.predict(X, top_k_fraction=0.2)
+
+    assert (signals != 0.0).mean() == 0.2
+    assert set(signals.unique()).issubset({-0.5, 0.0, 0.5})

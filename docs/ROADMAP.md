@@ -5,12 +5,18 @@
 | P0 | Foundation, Docker stack, backfill, and live soak | **Passed** |
 | P1 | Features and lifetime point-in-time validation | **Passed** |
 | P2 | Labels, sample weights, and purge-safe splits | **Passed** |
-| P3 | XGBoost baseline validation | Not started |
+| P3 | Signal-only XGBoost validation | **Blocked on full long-window validation evidence** |
 | P4 | Ensemble modeling | Not started |
 | P5 | Serving and frontend integration | Not started |
 | P6 | Drift monitoring and MLOps | Not started |
 
-The project follows the exact gates in PROJECT_SPEC.md.
+The project follows the exact gates in PROJECT_SPEC.md and remains signal-only.
+
+## Current status
+
+- P0–P2 are complete and validated through their required evidence gates.
+- P3 remains open because the full rolling 90-day positive-Sharpe criterion has not been proven on a sufficiently long artifact.
+- Representative sample results are encouraging, but they do not constitute full acceptance under the specification.
 
 ## P0 Gate Evidence
 
@@ -64,4 +70,10 @@ The project follows the exact gates in PROJECT_SPEC.md.
 - XGBoost multiclass wrapper is implemented with stable `-1, 0, 1` label encoding and probability output.
 - Optuna tuning entry point is configured for the required 200 chronological validation trials.
 - MLflow metric logging is implemented for baseline and model runs.
-- P3 acceptance evidence is not complete yet; walk-forward tuning and gate metrics remain to be run on the full feature artifact.
+- The tuning objective was revised to optimize validation strategy metrics instead of raw multiclass log-loss.
+- A direct `XGBoostReturnRanker` now predicts future barrier returns and emits only the strongest top-k directional signals.
+- P3 preparation now aligns the undersampled P2 artifact to causal features by `(symbol, time)` instead of row position; the prior representative result was invalid because undersampling breaks positional alignment.
+- Corrected representative 70,000-row BTC walk-forward evidence (2 folds, 2 trials) with the 50% risk cap is Sharpe `0.8398`, maximum drawdown `23.82%`, profit factor `1.4994`, and signal coverage `10%`.
+- A fixed 50% position-size risk cap is now applied to ranked signals; it preserves directional metrics while reducing compounded drawdown.
+- The rolling 90-day positive-Sharpe gate is now implemented; the representative slice is shorter than 90 days, so this criterion is intentionally reported as unverified rather than passed.
+- Representative four-metric gate result: Sharpe-vs-SMA, drawdown, profit-factor, and signal-coverage pass. Full P3 acceptance evidence remains incomplete and P3 is not closed.

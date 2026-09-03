@@ -1,4 +1,4 @@
-from backtest.metrics import profit_factor, sharpe_ratio, signal_coverage
+from backtest.metrics import profit_factor, rolling_positive_sharpe_fraction, sharpe_ratio, signal_coverage
 from backtest.purged_cv import purged_cv
 
 
@@ -26,3 +26,8 @@ def test_sharpe_ratio_is_positive_for_positive_mean_returns():
 def test_strategy_metrics_primitives_cover_p3_requirements():
     assert profit_factor([0.1, -0.05]) == 2.0
     assert signal_coverage([1, 0, -1]) == 2 / 3
+
+
+def test_rolling_positive_sharpe_fraction_requires_complete_window():
+    assert rolling_positive_sharpe_fraction([0.01] * 10, window=5) == 0.0
+    assert rolling_positive_sharpe_fraction([0.01, 0.02, 0.01, 0.02], window=2) == 1.0
