@@ -219,6 +219,22 @@ export default function Home() {
   const [price, setPrice] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [layers, setLayers] = useState({
+    ema9: true,
+    ema21: true,
+    sma50: true,
+    bollinger: true,
+    rsi: true,
+    macd: true,
+    swings: true,
+    trendLines: true,
+    supportResistance: true,
+    breakout: true,
+  });
+
+  const toggleLayer = (key: keyof typeof layers) => {
+    setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -429,15 +445,17 @@ export default function Home() {
   const bbUpperPath = linePath(bb.upper);
   const bbLowerPath = linePath(bb.lower);
 
-  // RSI sub-panel
+  // RSI sub-panel (collapses when hidden)
   const rsiTop = height + 14;
+  const rsiPanelHeight = layers.rsi ? rsiHeight : 0;
   const yForRsi = (value: number) => rsiTop + rsiHeight - (value / 100) * rsiHeight;
   const rsiPath = rsi
     .map((value, index) => `${index === 0 ? 'M' : 'L'} ${xForIndex(index)} ${yForRsi(value)}`)
     .join(' ');
 
-  // MACD sub-panel
-  const macdTop = rsiTop + rsiHeight + 26;
+  // MACD sub-panel (collapses when hidden)
+  const macdTop = rsiTop + rsiPanelHeight + (layers.rsi ? 26 : 12);
+  const macdPanelHeight = layers.macd ? macdHeight : 0;
   const macdAll = [...macd.macdLine, ...macd.signalLine, ...macd.histogram].filter((v) => Number.isFinite(v));
   const macdRange = Math.max(...macdAll.map(Math.abs), 1);
   const yForMacd = (value: number) => macdTop + macdHeight / 2 - (value / macdRange) * (macdHeight / 2);
@@ -448,7 +466,7 @@ export default function Home() {
     .map((value, index) => `${index === 0 ? 'M' : 'L'} ${xForIndex(index)} ${yForMacd(value)}`)
     .join(' ');
 
-  const totalSvgHeight = macdTop + macdHeight + 20;
+  const totalSvgHeight = macdTop + macdPanelHeight + 20;
 
   if (isLoading && !candles.length) {
     return (
@@ -571,6 +589,62 @@ export default function Home() {
 
         <div
           style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            marginBottom: 14,
+          }}
+        >
+          {(
+            [
+              ['ema9', 'EMA 9'],
+              ['ema21', 'EMA 21'],
+              ['sma50', 'SMA 50'],
+              ['bollinger', 'Bollinger Bands'],
+              ['rsi', 'RSI'],
+              ['macd', 'MACD'],
+              ['swings', 'Swing points'],
+              ['trendLines', 'Trend lines'],
+              ['supportResistance', 'Support/Resistance'],
+              ['breakout', 'Breakout markers'],
+            ] as [keyof typeof layers, string][]
+          ).map(([key, label]) => {
+            const active = layers[key];
+            return (
+              <button
+                key={key}
+                onClick={() => toggleLayer(key)}
+                style={{
+                  border: `1px solid ${active ? 'rgba(125, 211, 252, 0.7)' : 'rgba(120, 208, 255, 0.18)'}`,
+                  background: active ? 'rgba(125, 211, 252, 0.14)' : 'rgba(18, 47, 67, 0.4)',
+                  color: active ? '#bfe8ff' : '#5f7c8f',
+                  borderRadius: 999,
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: active ? '#7dd3fc' : 'transparent',
+                    border: active ? 'none' : '1px solid #5f7c8f',
+                  }}
+                />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div
+          style={{
             background: '#0a1823',
             border: '1px solid rgba(121, 164, 193, 0.3)',
             borderRadius: 18,
@@ -599,8 +673,12 @@ export default function Home() {
             ))}
 
             {/* Bollinger Bands */}
-            <path d={bbUpperPath} fill="none" stroke="rgba(125, 211, 252, 0.45)" strokeWidth={1} strokeDasharray="3 4" />
-            <path d={bbLowerPath} fill="none" stroke="rgba(125, 211, 252, 0.45)" strokeWidth={1} strokeDasharray="3 4" />
+            {layers.bollinger ? (
+              <>
+                <path d={bbUpperPath} fill="none" stroke="rgba(125, 211, 252, 0.45)" strokeWidth={1} strokeDasharray="3 4" />
+                <path d={bbLowerPath} fill="none" stroke="rgba(125, 211, 252, 0.45)" strokeWidth={1} strokeDasharray="3 4" />
+              </>
+            ) : null}
 
             {/* Candles */}
             <g>
@@ -625,36 +703,40 @@ export default function Home() {
             </g>
 
             {/* Moving averages */}
-            <path d={ema9Path} fill="none" stroke="#7dd3fc" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
-            <path d={ema21Path} fill="none" stroke="#c4b5fd" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
-            <path d={sma50Path} fill="none" stroke="#f4a261" strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" />
+            {layers.ema9 ? <path d={ema9Path} fill="none" stroke="#7dd3fc" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" /> : null}
+            {layers.ema21 ? <path d={ema21Path} fill="none" stroke="#c4b5fd" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" /> : null}
+            {layers.sma50 ? <path d={sma50Path} fill="none" stroke="#f4a261" strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" /> : null}
 
             {/* Price action: swing points */}
-            {swingHighs.map((swing) => (
-              <circle
-                key={`sh-${swing.index}`}
-                cx={xForIndex(swing.index)}
-                cy={yForPrice(swing.price)}
-                r={3}
-                fill="none"
-                stroke="#ff8fa3"
-                strokeWidth={1.4}
-              />
-            ))}
-            {swingLows.map((swing) => (
-              <circle
-                key={`sl-${swing.index}`}
-                cx={xForIndex(swing.index)}
-                cy={yForPrice(swing.price)}
-                r={3}
-                fill="none"
-                stroke="#5eead4"
-                strokeWidth={1.4}
-              />
-            ))}
+            {layers.swings ? (
+              <>
+                {swingHighs.map((swing) => (
+                  <circle
+                    key={`sh-${swing.index}`}
+                    cx={xForIndex(swing.index)}
+                    cy={yForPrice(swing.price)}
+                    r={3}
+                    fill="none"
+                    stroke="#ff8fa3"
+                    strokeWidth={1.4}
+                  />
+                ))}
+                {swingLows.map((swing) => (
+                  <circle
+                    key={`sl-${swing.index}`}
+                    cx={xForIndex(swing.index)}
+                    cy={yForPrice(swing.price)}
+                    r={3}
+                    fill="none"
+                    stroke="#5eead4"
+                    strokeWidth={1.4}
+                  />
+                ))}
+              </>
+            ) : null}
 
             {/* Price action: trend lines through recent swing highs/lows */}
-            {highTrend && recentSwingHighs.length >= 2 ? (
+            {layers.trendLines && highTrend && recentSwingHighs.length >= 2 ? (
               <line
                 x1={xForIndex(recentSwingHighs[0].index)}
                 y1={yForPrice(highTrend.valueAt(recentSwingHighs[0].index))}
@@ -665,7 +747,7 @@ export default function Home() {
                 strokeDasharray="2 3"
               />
             ) : null}
-            {lowTrend && recentSwingLows.length >= 2 ? (
+            {layers.trendLines && lowTrend && recentSwingLows.length >= 2 ? (
               <line
                 x1={xForIndex(recentSwingLows[0].index)}
                 y1={yForPrice(lowTrend.valueAt(recentSwingLows[0].index))}
@@ -678,13 +760,13 @@ export default function Home() {
             ) : null}
 
             {/* Price action: support & resistance levels */}
-            {supportLevel !== null ? (
+            {layers.supportResistance && supportLevel !== null ? (
               <g>
                 <line x1={pad.left} x2={width - pad.right} y1={yForPrice(supportLevel)} y2={yForPrice(supportLevel)} stroke="rgba(94,234,212,0.55)" strokeWidth={1} strokeDasharray="1 4" />
                 <text x={pad.left + 6} y={yForPrice(supportLevel) - 4} fill="#5eead4" fontSize="10">Support {formatPriceAxis(supportLevel)}</text>
               </g>
             ) : null}
-            {resistanceLevel !== null ? (
+            {layers.supportResistance && resistanceLevel !== null ? (
               <g>
                 <line x1={pad.left} x2={width - pad.right} y1={yForPrice(resistanceLevel)} y2={yForPrice(resistanceLevel)} stroke="rgba(255,143,163,0.55)" strokeWidth={1} strokeDasharray="1 4" />
                 <text x={pad.left + 6} y={yForPrice(resistanceLevel) - 4} fill="#ff8fa3" fontSize="10">Resistance {formatPriceAxis(resistanceLevel)}</text>
@@ -692,7 +774,7 @@ export default function Home() {
             ) : null}
 
             {/* Price action: breakout marker */}
-            {breakout ? (
+            {layers.breakout && breakout ? (
               <g>
                 <circle cx={xForIndex(lastIndex)} cy={yForPrice(currentPrice)} r={5} fill="none" stroke={breakout.direction === 'up' ? '#2bd784' : '#ff6584'} strokeWidth={2} />
                 <text
@@ -754,35 +836,43 @@ export default function Home() {
             </g>
 
             {/* RSI panel */}
-            <line x1={pad.left} x2={width - pad.right} y1={rsiTop} y2={rsiTop} stroke="rgba(154,169,183,0.15)" />
-            <text x={pad.left} y={rsiTop - 4} fill="#9bb5c8" fontSize="11">RSI (14)</text>
-            <line x1={pad.left} x2={width - pad.right} y1={yForRsi(70)} y2={yForRsi(70)} stroke="rgba(255,110,110,0.35)" strokeDasharray="3 4" />
-            <line x1={pad.left} x2={width - pad.right} y1={yForRsi(30)} y2={yForRsi(30)} stroke="rgba(70,220,155,0.35)" strokeDasharray="3 4" />
-            <path d={rsiPath} fill="none" stroke="#e8c15a" strokeWidth={1.4} />
-            <text x={width - pad.right - 30} y={yForRsi(70) - 4} fill="#ff9aa6" fontSize="10">70</text>
-            <text x={width - pad.right - 30} y={yForRsi(30) - 4} fill="#8fe3c2" fontSize="10">30</text>
+            {layers.rsi ? (
+              <>
+                <line x1={pad.left} x2={width - pad.right} y1={rsiTop} y2={rsiTop} stroke="rgba(154,169,183,0.15)" />
+                <text x={pad.left} y={rsiTop - 4} fill="#9bb5c8" fontSize="11">RSI (14)</text>
+                <line x1={pad.left} x2={width - pad.right} y1={yForRsi(70)} y2={yForRsi(70)} stroke="rgba(255,110,110,0.35)" strokeDasharray="3 4" />
+                <line x1={pad.left} x2={width - pad.right} y1={yForRsi(30)} y2={yForRsi(30)} stroke="rgba(70,220,155,0.35)" strokeDasharray="3 4" />
+                <path d={rsiPath} fill="none" stroke="#e8c15a" strokeWidth={1.4} />
+                <text x={width - pad.right - 30} y={yForRsi(70) - 4} fill="#ff9aa6" fontSize="10">70</text>
+                <text x={width - pad.right - 30} y={yForRsi(30) - 4} fill="#8fe3c2" fontSize="10">30</text>
+              </>
+            ) : null}
 
             {/* MACD panel */}
-            <line x1={pad.left} x2={width - pad.right} y1={macdTop} y2={macdTop} stroke="rgba(154,169,183,0.15)" />
-            <text x={pad.left} y={macdTop - 4} fill="#9bb5c8" fontSize="11">MACD (12, 26, 9)</text>
-            <line x1={pad.left} x2={width - pad.right} y1={yForMacd(0)} y2={yForMacd(0)} stroke="rgba(154,169,183,0.25)" />
-            {macd.histogram.map((value, index) => {
-              const x = xForIndex(index);
-              const y0 = yForMacd(0);
-              const y1 = yForMacd(value);
-              return (
-                <rect
-                  key={`hist-${index}`}
-                  x={x - 2}
-                  y={Math.min(y0, y1)}
-                  width={4}
-                  height={Math.max(Math.abs(y1 - y0), 1)}
-                  fill={value >= 0 ? 'rgba(43,215,132,0.55)' : 'rgba(255,101,132,0.55)'}
-                />
-              );
-            })}
-            <path d={macdLinePath} fill="none" stroke="#7dd3fc" strokeWidth={1.3} />
-            <path d={macdSignalPath} fill="none" stroke="#f4a261" strokeWidth={1.3} />
+            {layers.macd ? (
+              <>
+                <line x1={pad.left} x2={width - pad.right} y1={macdTop} y2={macdTop} stroke="rgba(154,169,183,0.15)" />
+                <text x={pad.left} y={macdTop - 4} fill="#9bb5c8" fontSize="11">MACD (12, 26, 9)</text>
+                <line x1={pad.left} x2={width - pad.right} y1={yForMacd(0)} y2={yForMacd(0)} stroke="rgba(154,169,183,0.25)" />
+                {macd.histogram.map((value, index) => {
+                  const x = xForIndex(index);
+                  const y0 = yForMacd(0);
+                  const y1 = yForMacd(value);
+                  return (
+                    <rect
+                      key={`hist-${index}`}
+                      x={x - 2}
+                      y={Math.min(y0, y1)}
+                      width={4}
+                      height={Math.max(Math.abs(y1 - y0), 1)}
+                      fill={value >= 0 ? 'rgba(43,215,132,0.55)' : 'rgba(255,101,132,0.55)'}
+                    />
+                  );
+                })}
+                <path d={macdLinePath} fill="none" stroke="#7dd3fc" strokeWidth={1.3} />
+                <path d={macdSignalPath} fill="none" stroke="#f4a261" strokeWidth={1.3} />
+              </>
+            ) : null}
           </svg>
         </div>
 
