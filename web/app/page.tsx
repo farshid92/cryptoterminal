@@ -285,14 +285,17 @@ export default function Home() {
   const height = 460;
   const rsiHeight = 90;
   const macdHeight = 90;
-  const pad = { top: 24, right: 16, bottom: 30, left: 72 };
+  const pad = { top: 24, right: 36, bottom: 30, left: 72 };
   const minPrice = Math.min(...chartCandles.map((candle) => candle.low), currentPrice * 0.995, bbLower);
   const maxPrice = Math.max(...chartCandles.map((candle) => candle.high), currentPrice * 1.005, bbUpper);
   const priceRange = Math.max(maxPrice - minPrice, 1);
 
+  // Reserve comfortable margin (12 bars worth of space) on the right for the latest candle
+  const rightMarginBars = 12;
   const xForIndex = (index: number) => {
     const inner = width - pad.left - pad.right;
-    return pad.left + (index / Math.max(chartCandles.length - 1, 1)) * inner;
+    const totalSlots = Math.max(chartCandles.length - 1 + rightMarginBars, 1);
+    return pad.left + (index / totalSlots) * inner;
   };
 
   const yForPrice = (value: number) => {
@@ -529,7 +532,36 @@ export default function Home() {
             <line x1={pad.left} x2={width - pad.right} y1={yForPrice(buyEntry)} y2={yForPrice(buyEntry)} stroke="rgba(70,220,155,0.85)" strokeDasharray="6 6" strokeWidth={1.2} />
             <line x1={pad.left} x2={width - pad.right} y1={yForPrice(sellEntry)} y2={yForPrice(sellEntry)} stroke="rgba(255,110,110,0.85)" strokeDasharray="6 6" strokeWidth={1.2} />
 
-            <line x1={xForIndex(chartCandles.length - 1)} x2={xForIndex(chartCandles.length - 1)} y1={pad.top} y2={height - pad.bottom} stroke="rgba(110,200,255,0.8)" strokeWidth={1.2} />
+            {/* Live price projection line & badge */}
+            <line
+              x1={xForIndex(chartCandles.length - 1)}
+              x2={width - pad.right}
+              y1={yForPrice(currentPrice)}
+              y2={yForPrice(currentPrice)}
+              stroke="#38bdf8"
+              strokeDasharray="3 3"
+              strokeWidth={1.2}
+            />
+            <g>
+              <rect
+                x={width - pad.right - 64}
+                y={yForPrice(currentPrice) - 9}
+                width={64}
+                height={18}
+                rx={4}
+                fill="#0284c7"
+              />
+              <text
+                x={width - pad.right - 32}
+                y={yForPrice(currentPrice) + 4}
+                textAnchor="middle"
+                fill="#ffffff"
+                fontSize="10"
+                fontWeight="700"
+              >
+                {formatPriceAxis(currentPrice)}
+              </text>
+            </g>
 
             {/* Legend */}
             <g>
@@ -538,13 +570,6 @@ export default function Home() {
               <text x={pad.left + 90} y={pad.top + 15} fill="#c4b5fd" fontSize="11">— EMA21</text>
               <text x={pad.left + 165} y={pad.top + 15} fill="#f4a261" fontSize="11">— SMA50</text>
               <text x={pad.left + 240} y={pad.top + 15} fill="#7dd3fc" fontSize="11" opacity={0.6}>┄ Bollinger</text>
-            </g>
-
-            <g>
-              <rect x={width - 200} y={pad.top + 8} width={160} height={70} rx={10} fill="rgba(15, 26, 38, 0.8)" stroke="rgba(154, 169, 183, 0.18)" />
-              <text x={width - 188} y={pad.top + 30} fill="#8ecae6" fontSize="11">Last</text>
-              <text x={width - 188} y={pad.top + 48} fill="#ffffff" fontSize="17" fontWeight="700">{formatUsd(currentPrice)}</text>
-              <text x={width - 188} y={pad.top + 64} fill={signalColor(overallSignal)} fontSize="12" fontWeight="700">{overallSignal}</text>
             </g>
 
             {/* RSI panel */}
